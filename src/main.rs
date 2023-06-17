@@ -1,10 +1,28 @@
-use std::{fs::OpenOptions, io::Write};
+use std::{io::Write, fs::File};
 
 struct Finder {
     stop: bool,
     index: usize,
     input: Vec<u8>,
     images_found: u32,
+}
+
+struct FileSignature{
+    header: Vec<u8>,
+    tail: Vec<u8>,
+    format: String,
+    name: String
+}
+
+impl FileSignature {
+    pub fn new(header: Vec<u8>, tail: Vec<u8>, format: &str, name: &str) -> Self{
+        Self{
+            header: header,
+            tail: tail,
+            format: String::from(format),
+            name: String::from(name)
+        }
+    }
 }
 
 impl Finder {
@@ -25,58 +43,58 @@ impl Finder {
         }
     }
 
-    pub fn peek(&mut self, offset: usize) -> u8 {
+    pub fn peek(&self, offset: usize) -> u8 {
         if self.index + offset < self.input.len() {
             return self.input[self.index + offset].clone();
         }
         return 0u8;
     }
 
-    pub fn previous(&mut self, offset: usize) -> u8 {
+    pub fn _previous(&self, offset: usize) -> u8 {
         if self.index as i32 - offset as i32 >= 0 {
             return self.input[self.index - offset].clone();
         }
         return 0u8;
     }
 
-    pub fn is_end_png(&mut self) -> bool {
-        self.previous(7) == 0x49
-            && self.previous(6) == 0x45
-            && self.previous(5) == 0x4E
-            && self.previous(4) == 0x44
-            && self.previous(3) == 0xAE
-            && self.previous(2) == 0x42
-            && self.previous(1) == 0x60
-            && self.input[self.index] == 0x82
+    pub fn find(&self, value: &Vec<u8>) -> bool{
+        for i in 0..value.len(){
+            if value[i] != self.peek(i) || self.stop{
+                return false;
+            }
+        }
+        true
     }
 
     pub fn read(&mut self) {
+        let mut index_start: usize = 0;
+        let file_signatures:Vec<FileSignature> = vec![
+            FileSignature::new(
+                vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
+                vec![0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82],
+                "png",
+                "image_png"
+            ),
+            //FileSignature::new(vec![0xFF, 0xD8, 0xFF, 0xE0], vec![0xFF, 0xD9], "jpg", "image_jpg"),
+            //FileSignature::new(vec![0xFF, 0xD8, 0xFF, 0xE1], vec![0xFF, 0xD9], "jpg", "image_jpg")
+        ];
         while !self.stop {
-            let current_value = self.input[self.index].clone();
-            if current_value == 0x89
-                && self.peek(1) == 0x50
-                && self.peek(2) == 0x4E
-                && self.peek(3) == 0x47
-            {
-                let mut output_file: Vec<u8> = Vec::new();
-                while !(self.is_end_png()) {
-                    output_file.push(self.input[self.index].clone());
-                    self.advence();
+            for signature in &file_signatures{
+                if self.find(&signature.header){
+                    index_start = self.index.clone();
                 }
-                output_file.push(0x82u8);
-                let mut output_file_result = OpenOptions::new()
-                    .write(true)
-                    .create(true)
-                    .open(format!("image_result/image{}.png", self.images_found))
-                    .expect("Failed to create file.");
-                output_file_result
-                    .write_all(&output_file)
-                    .expect("Failed to write");
-                self.images_found += 1;
-            } else {
-                self.advence();
+                if self.find(&signature.tail){
+                    self.create_file(index_start, self.index + signature.tail.len(), &signature.name, &signature.format);
+                }
             }
+            self.advence();
         }
+    }
+
+    pub fn create_file(&mut self, start: usize, end: usize, name: &str, format: &str){
+        let mut file: File = File::create(format!("result/{}_{}.{}", name, self.images_found, format)).expect("Failed to create file.");
+        file.write(&self.input[start..end]).expect("Failed to write file");
+        self.images_found += 1;
     }
 }
 
@@ -88,7 +106,7 @@ fn main() {
     }
     let file_contents: Vec<u8> = std::fs::read(args[1].to_string()).expect("Failed to read file");
     let mut finder: Finder = Finder::new(file_contents);
-    std::fs::create_dir("image_result").unwrap_or_default();
+    std::fs::create_dir("result").unwrap_or_default();
     finder.read();
     println!("Found {} images", finder.images_found);
 }
