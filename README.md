@@ -8,4 +8,6 @@
 
 It's really simple to use:
 
-`png_finder <file>`
+`png_finder <file_input> [output_folder]`
+
+`output_folder` is optional when is not set the output folder name is same as the file by default.
