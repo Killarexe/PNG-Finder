@@ -36,7 +36,7 @@ impl Scanner {
             if self.is_png_header() {
                 current_result.0 = self.index;
             }else if current_result.0 < self.index && self.is_png_tail() {
-                current_result.1 = self.index + 7;
+                current_result.1 = self.index + 8;
                 result.push(current_result);
             }
             self.advence();

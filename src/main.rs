@@ -5,6 +5,9 @@ use clap::Parser;
 mod args;
 mod scanner;
 
+#[cfg(test)]
+mod tests;
+
 fn main() {
     let args: args::Args = args::Args::parse();
     let dir_output: PathBuf = args.get_dir_output();
